@@ -1,5 +1,3 @@
-
-
 function Get-FileVersions {
     param (
         [PSCustomObject]$item
@@ -46,7 +44,6 @@ function Test-LibraryExists {
 }
 
 function Request-UserChoice {
-    # Clear-Host
     Write-Host "What do you want to do?" -ForegroundColor Cyan
     Write-Host "Current Library: $libraryName"  -ForegroundColor Yellow
     Write-Host "-----------------------"
@@ -200,7 +197,7 @@ function Remove-Versions {
     )
     
     $n = Read-Host -Prompt "Enter the version number to keep (all versions below this will be deleted)"
-    $items = Get-PnPListItem -List $libraryName
+    $items = Get-PnPListItem -List $libraryName -PageSize 500
 
     foreach ($item in $items) {
         if ($item.FileSystemObjectType -eq "File") {
@@ -253,5 +250,5 @@ function Initialize-MainProgram {
     }
 }
 
-# Execute the main program function
+# Execute the main function
 Initialize-MainProgram
