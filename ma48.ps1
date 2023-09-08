@@ -8,23 +8,38 @@ function Get-FileVersions {
 }
 
 function Connect-Sharepoint {
+
+    param (
+        [string]$runTimeStamp   
+    )
     try {
         $currentContext = Get-PnPContext
         if ($null -eq $currentContext.ServerVersion) {
+            Write-Log -Message "No existing SharePoint connection found." -runTimeStamp $runTimeStamp
             $currentContext = $null
         }
     }
     catch {
+        Write-Log -Message "An error occurred while fetching existing SharePoint connection." -runTimeStamp $runTimeStamp
         $currentContext = $null
     }
 
     if ($null -eq $currentContext) {
+        Write-Log -Message "Initiating new SharePoint connection..." -runTimeStamp $runTimeStamp
         $tenant = Read-Host -Prompt "Enter tenant (xxx.sharepoint.com)"
         $site = Read-Host -Prompt "Enter site name (...sharepoint.com/sites/xxx)"
-        
+            
         Connect-PnPOnline -Url "https://$tenant.sharepoint.com/sites/$site" -Interactive
+        Write-Log -Message "Successfully connected to https://$tenant.sharepoint.com/sites/$site" -runTimeStamp $runTimeStamp
     }
+    else {
+        $siteUrl = $currentContext.Url
+        Write-Log -Message "Using existing SharePoint context. Connected to $siteUrl" -runTimeStamp $runTimeStamp
+        Write-Host "Using existing SharePoint context. Connected to $siteUrl" -ForegroundColor Green
+    }
+    
 }
+
 
 # Check if a library exists
 function Test-LibraryExists {
@@ -193,15 +208,16 @@ function Show-File-Versions {
 function Remove-Versions {
     param (
         [Parameter(Mandatory = $true)]
-        [string]$libraryName
+        [string]$libraryName,
+        [string]$runTimeStamp
     )
-    
+        
     $inputString = Read-Host -Prompt "Enter the number of latest versions to preserve"
     $n = 0
 
     if (![int]::TryParse($inputString, [ref]$n) -or $n -le 0) {
         Write-Host "Invalid input. Please enter a positive integer." -ForeGroundColor Red
-        return
+        return      
     }
 
     $items = Get-PnPListItem -List $libraryName -PageSize 500
@@ -210,14 +226,22 @@ function Remove-Versions {
         if ($item.FileSystemObjectType -eq "File") {
             $fileInfo = Get-FileVersions -item $item
             Write-Host "Processing File: $($fileInfo.FileUrl)"
-            
+            Write-Log "Processing File: $($fileInfo.FileUrl)" -runTimeStamp $runTimeStamp
+
             # Sort the versions in descending order so that the latest are first
             $sortedVersions = $fileInfo.Versions | Sort-Object { [double]$_.VersionLabel } -Descending
-            
+                
             # Remove versions except for the latest N
             for ($i = $n; $i -lt $sortedVersions.Count; $i++) {
                 Write-Host "`tDeleting version: $($sortedVersions[$i].VersionLabel)"
-                Remove-PnPFileVersion -Url $fileInfo.FileUrl -Identity $sortedVersions[$i].VersionLabel -Force
+                Write-Log "`tDeleting version: $($sortedVersions[$i].VersionLabel)" -runTimeStamp $runTimeStamp
+                try {
+                    Remove-PnPFileVersion -Url $fileInfo.FileUrl -Identity $sortedVersions[$i].VersionLabel -Force
+                    Write-Log "`tSuccessfully deleted version: $($sortedVersions[$i].VersionLabel)" -runTimeStamp $runTimeStamp
+                }
+                catch {
+                    Write-Log "`tFailed to delete version: $($sortedVersions[$i].VersionLabel)" -runTimeStamp $runTimeStamp
+                }
             }
         }
     }
@@ -228,34 +252,71 @@ function Remove-Versions {
 function Confirm-And-RemoveVersions {
     param (
         [Parameter(Mandatory = $true)]
-        [string]$libraryName
+        [string]$libraryName,
+        [Parameter(Mandatory = $true)]
+        [string]$runTimeStamp
     )
     $confirmation = Read-Host "Are you sure you want to delete versions? (Y/N)"
     if ($confirmation -eq "Y") {
-        Remove-Versions -libraryName $libraryName
+        Remove-Versions -libraryName $libraryName -runTimeStamp $runTimeStamp
     }
     else {
         Write-Host "Operation canceled."
     }
 }
 
+$logDirectory = ".\Logs"
+
+function Write-Log {
+    param (
+        [string]$Message,
+        [Parameter(Mandatory = $true)]
+        [string]$runTimeStamp
+    )
+
+    $logTimeStamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    "$logTimeStamp - $Message" | Out-File -FilePath "$logDirectory\Log_$runTimeStamp.txt" -Append
+}
+
+function New-LogFile {
+    if (-Not (Test-Path $logDirectory)) {
+        New-Item -Path $logDirectory -ItemType Directory
+    }
+
+    $runTimeStamp = Get-Date -Format "yyyy-MM-dd_HH_mm_ss"
+    Write-Log -Message "Script started" -runTimeStamp $runTimeStamp
+
+    return $runTimeStamp
+}
+
+
 # Main program function
 function Initialize-MainProgram {
-    Connect-Sharepoint
-    $libraryName = Request-LibraryName
+    $runTimeStamp = New-LogFile
+
+    Connect-Sharepoint -runTimeStamp $runTimeStamp
+    $libraryName = Request-LibraryName -runTimeStamp $runTimeStamp
     $exitLoop = $false
+
+    Write-Host "Debug: runTimeStamp in Initialize-MainProgram: $runTimeStamp"
+
+
 
     while (-not $exitLoop) {
         $choice = Request-UserChoice
         switch ($choice) {
             "1" { Show-File-Versions -libraryName $libraryName }
-            "2" { Confirm-And-RemoveVersions -libraryName $libraryName }
+            "2" { Confirm-And-RemoveVersions -libraryName $libraryName -runTimeStamp $runTimeStamp }
             "3" { $libraryName = Request-LibraryName }
             "4" { 
                 Write-Host "Exiting the program. Good Bye!" -ForegroundColor Green
+                Write-Log "Exiting the program. Good Bye!"  -runTimeStamp $runTimeStamp
                 $exitLoop = $true
             }
-            default { Write-Host "Invalid choice. Please try again." -ForegroundColor Red }
+            default { 
+                Write-Host "Invalid choice. Please try again." -ForegroundColor Red 
+                Write-Log "Invalid choice. User entered: $choice" -runTimeStamp $runTimeStamp
+            }
         }
     }
 }
