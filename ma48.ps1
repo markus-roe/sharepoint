@@ -196,8 +196,14 @@ function Remove-Versions {
         [string]$libraryName
     )
     
-    $n = Read-Host -Prompt "Enter the number of latest versions to preserve"
-    $n = [int]$n  # Convert to integer
+    $inputString = Read-Host -Prompt "Enter the number of latest versions to preserve"
+    $n = 0
+
+    if (![int]::TryParse($inputString, [ref]$n) -or $n -le 0) {
+        Write-Host "Invalid input. Please enter a positive integer." -ForeGroundColor Red
+        return
+    }
+
     $items = Get-PnPListItem -List $libraryName -PageSize 500
 
     foreach ($item in $items) {
