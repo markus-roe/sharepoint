@@ -10,7 +10,8 @@ function Get-FileVersions {
 function Connect-Sharepoint {
 
     param (
-        [string]$runTimeStamp   
+        [string]$runTimeStamp,
+        [switch]$ForceNewConnection = $false
     )
     try {
         $currentContext = Get-PnPContext
@@ -24,7 +25,7 @@ function Connect-Sharepoint {
         $currentContext = $null
     }
 
-    if ($null -eq $currentContext) {
+    if ($null -eq $currentContext -or $ForceNewConnection) {
         Write-Log -Message "Initiating new SharePoint connection..." -runTimeStamp $runTimeStamp
         $tenant = Read-Host -Prompt "Enter tenant (xxx.sharepoint.com)"
         $site = Read-Host -Prompt "Enter site name (...sharepoint.com/sites/xxx)"
@@ -65,9 +66,10 @@ function Request-UserChoice {
     Write-Host "1) List versions [Displays all file versions in the current library]"
     Write-Host "2) Preserve & Delete Versions [Preserves the last N versions and deletes the rest]"
     Write-Host "3) Switch library [Allows you to change the working library]"
-    Write-Host "4) Exit [Exits the program]"
+    Write-Host "4) Change SharePoint tenant/site [Allows you to connect to a different tenant/site]"
+    Write-Host "5) Exit [Exits the program]"
     Write-Host "-----------------------"
-    $choice = Read-Host -Prompt "(Enter 1/2/3/4)"
+    $choice = Read-Host -Prompt "(Enter 1/2/3/4/5)"
     return $choice
 }
 
@@ -91,7 +93,7 @@ function Request-LibraryName {
 
         Write-Host "  N) Next Page"
         Write-Host "  P) Previous Page"
-        Write-Host "  S) Select Library"
+        Write-Host "  S) Enter Library Name"
 
         $action = Read-Host -Prompt "Choose an action (N/P/S/1..$($currentLibraries.Count))"
 
@@ -309,6 +311,11 @@ function Initialize-MainProgram {
             "2" { Confirm-And-RemoveVersions -libraryName $libraryName -runTimeStamp $runTimeStamp }
             "3" { $libraryName = Request-LibraryName }
             "4" { 
+                Write-Host "Changing SharePoint site..."
+                Connect-Sharepoint -runTimeStamp $runTimeStamp -ForceNewConnection
+                $libraryName = Request-LibraryName
+            }
+            "5" { 
                 Write-Host "Exiting the program. Good Bye!" -ForegroundColor Green
                 Write-Log "Exiting the program. Good Bye!"  -runTimeStamp $runTimeStamp
                 $exitLoop = $true
