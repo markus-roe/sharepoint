@@ -156,7 +156,7 @@ function Show-File-Versions {
     # Display header
     $headerFormat = "{0,-$maxFileUrlLength} | {1,-10} | {2,-25}"
     Write-Host -f Cyan ($headerFormat -f "File URL", "Version", "Created Date")
-    Write-Host -f Cyan ('-' * ($maxFileUrlLength + 36))
+    Write-Host  ('-' * ($maxFileUrlLength + 36))
 
     foreach ($item in $fileItems) {
         $fileInfo = Get-FileVersions -item $item
@@ -179,7 +179,7 @@ function Show-File-Versions {
 
             Write-Host -f Green $line
         }
-        Write-Host -f Green ('-' * ($maxFileUrlLength + 36))
+        Write-Host ('-' * ($maxFileUrlLength + 36))
 
     }
 }
