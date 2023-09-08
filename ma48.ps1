@@ -48,7 +48,7 @@ function Request-UserChoice {
     Write-Host "Current Library: $libraryName"  -ForegroundColor Yellow
     Write-Host "-----------------------"
     Write-Host "1) List versions [Displays all file versions in the current library]"
-    Write-Host "2) Delete specific versions [Deletes file versions below a specified number]"
+    Write-Host "2) Preserve & Delete Versions [Preserves the last N versions and deletes the rest]"
     Write-Host "3) Switch library [Allows you to change the working library]"
     Write-Host "4) Exit [Exits the program]"
     Write-Host "-----------------------"
@@ -189,14 +189,15 @@ function Show-File-Versions {
 
 
 
-# Remove versions of files in a library based on user input
+# Remove versions of files in a library, preserving only the latest N versions
 function Remove-Versions {
     param (
         [Parameter(Mandatory = $true)]
         [string]$libraryName
     )
     
-    $n = Read-Host -Prompt "Enter the version number to keep (all versions below this will be deleted)"
+    $n = Read-Host -Prompt "Enter the number of latest versions to preserve"
+    $n = [int]$n  # Convert to integer
     $items = Get-PnPListItem -List $libraryName -PageSize 500
 
     foreach ($item in $items) {
@@ -204,15 +205,18 @@ function Remove-Versions {
             $fileInfo = Get-FileVersions -item $item
             Write-Host "Processing File: $($fileInfo.FileUrl)"
             
-            foreach ($version in $fileInfo.Versions) {
-                if ([double]$version.VersionLabel -lt [double]$n) {
-                    Write-Host "`tDeleting version: $($version.VersionLabel)"
-                    Remove-PnPFileVersion -Url $fileInfo.FileUrl -Identity $version.VersionLabel -Force
-                }
+            # Sort the versions in descending order so that the latest are first
+            $sortedVersions = $fileInfo.Versions | Sort-Object { [double]$_.VersionLabel } -Descending
+            
+            # Remove versions except for the latest N
+            for ($i = $n; $i -lt $sortedVersions.Count; $i++) {
+                Write-Host "`tDeleting version: $($sortedVersions[$i].VersionLabel)"
+                Remove-PnPFileVersion -Url $fileInfo.FileUrl -Identity $sortedVersions[$i].VersionLabel -Force
             }
         }
     }
 }
+
 
 # Confirmation before deleting versions
 function Confirm-And-RemoveVersions {
